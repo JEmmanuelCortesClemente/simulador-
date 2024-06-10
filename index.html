@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego en Primera Persona con Three.js</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+        #crash-btn, #reset-btn, #freecam-btn {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #ff0000;
+            color: #ffffff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #crash-btn { left: 10px; }
+        #reset-btn { left: 110px; }
+        #freecam-btn { left: 210px; background-color: #00ff00; }
+        .active { background-color: #00ff00; }
+        .inactive { background-color: #ff0000; }
+
+        /* Estilo para los botones del semáforo */
+#red-light-btn, #yellow-light-btn, #green-light-btn, #stop-btn, #increase-speed-btn, #decrease-speed-btn, #speed-indicator, #play-sound-button  {
+    position: absolute;
+    top: 60px;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+#red-light-btn { left: 10px; background-color: #ff0000; color: white; }
+#yellow-light-btn { left: 110px; background-color: #ffff00; color: black; }
+#green-light-btn { left: 230px; background-color: #00ff00; color: white; }
+#stop-btn { left: 330px; background-color: #00ff00; color: white; }
+
+#increase-speed-btn { left: 530px; background-color: #1a128b; color: white; }
+#decrease-speed-btn { left: 700px; background-color: #3700ff; color: white; }
+#speed-indicator { left: 880px;  top: 42px;  background-color: #000000; color: white; }
+
+#play-sound-button { left: 990px;   background-color: #be157d; color: white; }
+   
+    </style>
+</head>
+<body>
+    
+
+<!-- Botones para controlar el semáforo -->
+<button id="red-light-btn">Luz Roja</button>
+<button id="yellow-light-btn">Luz Amarilla</button>
+<button id="green-light-btn">Luz Verde</button>
+
+<button id="stop-btn">Frenar y Encender Tren </button>
+
+
+
+<button id="increase-speed-btn">Aumentar velocidad</button>
+<button id="decrease-speed-btn">Disminuir velocidad</button>
+<p id="speed-indicator">Velocidad: 0</p>
+
+<button id="play-sound-button">Reproducir sonido</button>
+
+    <button id="crash-btn">Estrellar</button>
+    <button id="reset-btn">Reiniciar</button>
+    <button id="freecam-btn" class="inactive">Cámara Libre</button>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+
+ 
+    <script>
+// Configurar la escena, cámaras, luces y objetos...
+
+     
+// Función para actualizar el semáforo
+function updateTrafficLight() {
+    switch (currentLight) {
+        case 'red':
+            redLightMaterial.color.set(0xff0000);
+            yellowLightMaterial.color.set(0x4d4d00); // Luces apagadas en tono oscuro
+            greenLightMaterial.color.set(0x004d00);
+            break;
+        case 'yellow':
+            redLightMaterial.color.set(0x4d0000);
+            yellowLightMaterial.color.set(0xffff00);
+            greenLightMaterial.color.set(0x004d00);
+            break;
+        case 'green':
+            redLightMaterial.color.set(0x4d0000);
+            yellowLightMaterial.color.set(0x4d4d00);
+            greenLightMaterial.color.set(0x00ff00);
+            break;
+    }
+}
+
+// Controlar el cambio de luces manualmente mediante los botones
+document.getElementById('red-light-btn').addEventListener('click', () => {
+    currentLight = 'red';
+    updateTrafficLight();
+});
+
+document.getElementById('yellow-light-btn').addEventListener('click', () => {
+    currentLight = 'yellow';
+    updateTrafficLight();
+});
+
+document.getElementById('green-light-btn').addEventListener('click', () => {
+    currentLight = 'green';
+    updateTrafficLight();
+});
+
+
+
+        // Configurar la escena
+        const scene = new THREE.Scene();
+
+        // Configurar la cámara en vista superior
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 25, 0); // Posicionar la cámara arriba
+        camera.rotation.x = -Math.PI / 2; // Orientar la cámara hacia abajo
+        scene.add(camera);
+
+
+        // Aquí es donde añades el AudioListener a tu cámara
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+// Aquí es donde cargas el archivo de audio
+const audioLoader = new THREE.AudioLoader();
+
+let sound = new THREE.Audio(listener);
+
+audioLoader.load('Sonido/metro.mp3', function(buffer) {
+    sound.setBuffer(buffer);
+    sound.setLoop(true);
+    sound.setVolume(0.5);
+    sound.play();
+});
+        // Configurar la cámara en primera persona
+        const firstPersonCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        firstPersonCamera.position.set(0, 2, 20); // Posicionar la cámara a la altura de los ojos y alejarla más hacia atrás
+        scene.add(firstPersonCamera);
+
+        // Variable para almacenar la cámara actual
+        let currentCamera = camera;
+
+        // Escuchar el evento de presionar la tecla 'p'
+        window.addEventListener('keydown', function(event) {
+            if (event.key === 'p') {
+                // Cambiar la cámara actual
+                currentCamera = currentCamera === camera ? firstPersonCamera : camera;
+            }
+        });
+
+        // Crear el suelo (plano) con textura
+        const groundTexture = new THREE.TextureLoader().load('textura/2.jpg');
+        groundTexture.wrapS = THREE.RepeatWrapping;
+        groundTexture.wrapT = THREE.RepeatWrapping;
+        groundTexture.repeat.set(1, 1); // Repetir la textura 1x1 estable
+        const groundMaterial = new THREE.MeshBasicMaterial({ map: groundTexture });
+        const groundGeometry = new THREE.PlaneGeometry(100, 50); // Ajustar el tamaño del plano
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2; // Orientar el plano horizontalmente
+        scene.add(ground);
+
+        // Agregar paredes laterales con la misma textura del suelo
+        const wallMaterial = new THREE.MeshBasicMaterial({ map: groundTexture });
+        const wallHeight = 10; // Ajustar la altura de las paredes
+
+        const leftWallGeometry = new THREE.PlaneGeometry(50, wallHeight);
+        const leftWall = new THREE.Mesh(leftWallGeometry, wallMaterial);
+        leftWall.position.set(-50, wallHeight / 2, 0); // Ajustar la posición en Y de acuerdo a la nueva altura
+        leftWall.rotation.y = Math.PI / 2;
+        scene.add(leftWall);
+
+        const rightWallGeometry = new THREE.PlaneGeometry(50, wallHeight);
+        const rightWall = new THREE.Mesh(rightWallGeometry, wallMaterial);
+        rightWall.position.set(50, wallHeight / 2, 0); // Ajustar la posición en Y de acuerdo a la nueva altura
+        rightWall.rotation.y = -Math.PI / 2;
+        scene.add(rightWall);
+
+        // Configurar la textura de fondo
+        const backgroundTexture = new THREE.TextureLoader().load('textura/1.jpg'); // Ruta relativa
+        scene.background = backgroundTexture;
+
+        // Configurar el renderizador
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Crear una luz ambiental para iluminar la escena
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+        scene.add(ambientLight);
+
+        // Configurar la trayectoria circular para las vías del tren
+        const railRadius = 17; // Radio de la vía circular
+        const railHeight = 1.4; // Grosor de las vías
+        const railSegments = 100; // Número de segmentos para la vía circular
+
+        // Crear la primera vía
+        const railGeometry = new THREE.TorusGeometry(railRadius, railHeight, railSegments, 100);
+        const railTexture = new THREE.TextureLoader().load('textura/via.png'); // Ruta de la textura de las vías
+        railTexture.wrapS = THREE.RepeatWrapping;
+        railTexture.wrapT = THREE.RepeatWrapping;
+        railTexture.repeat.set(10, 1.5); // Repetir la textura a lo largo de las vías
+        const railMaterial = new THREE.MeshBasicMaterial({ map: railTexture });
+        const rail1 = new THREE.Mesh(railGeometry, railMaterial);
+        rail1.rotation.x = -Math.PI / 2; // Orientar la pista hacia el plano horizontal
+        rail1.position.set(-10, -0.1, 0); // Ajustar la posición de la primera vía
+        scene.add(rail1);
+
+        // Crear la segunda vía
+        const rail2 = new THREE.Mesh(railGeometry, railMaterial);
+        rail2.rotation.x = -Math.PI / 2; // Orientar la pista hacia el plano horizontal
+        rail2.position.set(10, -0.1, 0); // Ajustar la posición de la segunda vía
+        scene.add(rail2);
+
+        // Cargar la textura para el tren
+        const trainTexture = new THREE.TextureLoader().load('textura/3.jpg'); // Ruta relativa
+
+        // Crear un material utilizando la textura cargada
+        const trainMaterial = new THREE.MeshPhongMaterial({ map: trainTexture });
+
+        // Crear trenes para la primera vía
+        const trainGeometry = new THREE.BoxGeometry(1, 1, 2); // Altura, largo
+        const trains1 = [];
+        const numTrains = 5; // Número de trenes reducido a 5
+        const trainSpacing = (2 * Math.PI * railRadius) / (numTrains * 9.3); // Reducido aún más para acercar los trenes
+
+        for (let i = 0; i < numTrains; i++) {
+            const train = new THREE.Mesh(trainGeometry, trainMaterial);
+            const angle = (i * trainSpacing) / railRadius;
+            train.position.set(-10 + railRadius * Math.sin(angle), 1.8, railRadius * Math.cos(angle));
+            train.userData.angle = angle;
+            scene.add(train);
+            trains1.push(train);
+        }
+
+        // Crear trenes para la segunda vía
+        const trains2 = [];
+        for (let i = 0; i < numTrains; i++) {
+            const train = new THREE.Mesh(trainGeometry, trainMaterial);
+            const angle = (i * trainSpacing) / railRadius;
+            train.position.set(10 + railRadius * Math.sin(angle), 1.8, railRadius * Math.cos(angle));
+            train.userData.angle = angle;
+            scene.add(train);
+            trains2.push(train);
+        }
+
+        // Crear las ruedas del tren
+        const wheelGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 32);
+        const wheelMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 }); // Material reflectante
+
+        const addWheels = (train) => {
+            const wheel1 = new THREE.Mesh(wheelGeometry, wheelMaterial);
+            const wheel2 = new THREE.Mesh(wheelGeometry, wheelMaterial);
+            const wheel3 = new THREE.Mesh(wheelGeometry, wheelMaterial);
+            const wheel4 = new THREE.Mesh(wheelGeometry, wheelMaterial);
+
+            // Posicionar y rotar las ruedas del tren
+            wheel1.position.set(-0.5, -0.6, -0.6);   // Llanta 1
+            wheel2.position.set(-0.5, -0.6, -0.6);    // Llanta 2
+            wheel3.position.set(0.5, -0.6, 0.6);    // Llanta 3
+            wheel4.position.set(0.5, -0.6, 0.6);    // Llanta 4
+
+            wheel1.rotation.z = Math.PI / 2;
+            wheel2.rotation.z = Math.PI / 2;
+            wheel3.rotation.z = Math.PI / 2;
+            wheel4.rotation.z = Math.PI / 2;
+
+            train.add(wheel1);
+            train.add(wheel2);
+            train.add(wheel3);
+            train.add(wheel4);
+        };
+
+        trains1.forEach(addWheels);
+        trains2.forEach(addWheels);
+
+        // Crear y agregar el semáforo
+        const postGeometry = new THREE.CylinderGeometry(0.2, 0.2, 5, 32);
+        const postMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+        const post = new THREE.Mesh(postGeometry, postMaterial);
+        post.position.set(0, 2.5, 0);
+        scene.add(post);
+
+        // Crear las luces del semáforo
+        const lightGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+        const redLightMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+        const yellowLightMaterial = new THREE.MeshPhongMaterial({ color: 0xffff00 });
+        const greenLightMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+
+        const redLight = new THREE.Mesh(lightGeometry, redLightMaterial);
+        redLight.position.set(0, 4, 0);
+        scene.add(redLight);
+
+        const yellowLight = new THREE.Mesh(lightGeometry, yellowLightMaterial);
+        yellowLight.position.set(0, 3, 0);
+        scene.add(yellowLight);
+
+        const greenLight = new THREE.Mesh(lightGeometry, greenLightMaterial);
+        greenLight.position.set(0, 2, 0);
+        scene.add(greenLight);
+
+        // Alternar las luces del semáforo
+        let currentLight = 'red';
+        const changeLights = () => {
+            if (currentLight === 'red') {
+                redLightMaterial.color.set(0x550000);
+                yellowLightMaterial.color.set(0xffff00);
+                greenLightMaterial.color.set(0x005500);
+                currentLight = 'yellow';
+            } else if (currentLight === 'yellow') {
+                redLightMaterial.color.set(0x550000);
+                yellowLightMaterial.color.set(0x555500);
+                greenLightMaterial.color.set(0x00ff00);
+                currentLight = 'green';
+            } else if (currentLight === 'green') {
+                redLightMaterial.color.set(0xff0000);
+                yellowLightMaterial.color.set(0x555500);
+                greenLightMaterial.color.set(0x005500);
+                currentLight = 'red';
+            }
+        };
+
+        // Cambiar las luces cada 3 segundos
+        setInterval(changeLights, 3000);
+
+        // Actualizar la posición de los trenes
+        const updateTrainPosition = (trains, xOffset) => {
+    if (!trainsMoving) return;
+    trains.forEach((train) => {
+        train.userData.angle += trainSpeed;
+        const x = xOffset + railRadius * Math.sin(train.userData.angle);
+        const z = railRadius * Math.cos(train.userData.angle);
+        train.position.set(x, 1.8, z);
+        train.rotation.y = train.userData.angle + Math.PI / 2;
+    });
+};
+
+
+
+
+        // Manejar el movimiento de la cámara con las teclas del teclado
+        const moveSpeed = 0.2; // Velocidad de movimiento de la cámara
+        const moveDirection = { forward: false, backward: false, left: false, right: false };
+
+        // Escuchar los eventos de presionar teclas
+        window.addEventListener('keydown', (event) => {
+            switch (event.key) {
+                case 'ArrowUp':
+                case 'w':
+                    moveDirection.forward = true;
+                    break;
+                case 'ArrowDown':
+                case 's':
+                    moveDirection.backward = true;
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                    moveDirection.left = true;
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                    moveDirection.right = true;
+                    break;
+            }
+        });
+
+        // Escuchar los eventos de soltar teclas
+        window.addEventListener('keyup', (event) => {
+            switch (event.key) {
+                case 'ArrowUp':
+                case 'w':
+                    moveDirection.forward = false;
+                    break;
+                case 'ArrowDown':
+                case 's':
+                    moveDirection.backward = false;
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                    moveDirection.left = false;
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                    moveDirection.right = false;
+                    break;
+            }
+        });
+
+        // Función para mover la cámara según la dirección
+        const moveCamera = () => {
+            if (moveDirection.forward) firstPersonCamera.position.z -= moveSpeed;
+            if (moveDirection.backward) firstPersonCamera.position.z += moveSpeed;
+            if (moveDirection.left) firstPersonCamera.position.x -= moveSpeed;
+            if (moveDirection.right) firstPersonCamera.position.x += moveSpeed;
+        };
+
+        // Función de animación
+        let crashTrains = false;
+
+        let trainsMoving = true;
+
+        let trainSpeed = 0.01; // Puedes ajustar este valor inicial según sea necesario
+
+        const animate = () => {
+            requestAnimationFrame(animate);
+            if (!crashTrains) {
+                updateTrainPosition(trains1, -10);
+                updateTrainPosition(trains2, 10);
+            }
+            if (controls) controls.update(); // Actualizar los controles de la cámara libre si están activados
+            if (currentCamera === firstPersonCamera) moveCamera(); // Mover la cámara si está en primera persona
+            renderer.render(scene, currentCamera);
+        };
+
+        // Estrellar los trenes
+        const crash = () => {
+            crashTrains = true;
+            trains1.forEach((train) => {
+                const randomRotationX = Math.random() * Math.PI - (Math.PI / 2);
+                const randomRotationZ = Math.random() * Math.PI - (Math.PI / 2);
+                train.rotation.x = randomRotationX;
+                train.rotation.z = randomRotationZ;
+            });
+            trains2.forEach((train) => {
+                const randomRotationX = Math.random() * Math.PI - (Math.PI / 2);
+                const randomRotationZ = Math.random() * Math.PI - (Math.PI / 2);
+                train.rotation.x = randomRotationX;
+                train.rotation.z = randomRotationZ;
+            });
+        };
+
+        
+
+        document.getElementById('crash-btn').addEventListener('click', crash);
+
+        // Función para reiniciar la página
+        const reset = () => {
+            location.reload();
+        };
+
+        document.getElementById('reset-btn').addEventListener('click', reset);
+
+//nuevo
+
+//fin 
+
+        // Habilitar cámara libre con OrbitControls
+        let controls;
+        let freeCameraActive = false;
+        const freeCamBtn = document.getElementById('freecam-btn');
+
+        const toggleFreeCamera = () => {
+            freeCameraActive = !freeCameraActive;
+            if (freeCameraActive) {
+                controls = new THREE.OrbitControls(currentCamera, renderer.domElement);
+                controls.enableDamping = true; // Habilitar amortiguación
+                controls.dampingFactor = 0.05; // Factor de amortiguación
+                controls.enableZoom = true; // Permitir zoom
+                controls.enablePan = true; // Permitir desplazamiento
+                freeCamBtn.classList.remove('inactive');
+                freeCamBtn.classList.add('active');
+            } else {
+                controls.dispose();
+                controls = null;
+                freeCamBtn.classList.remove('active');
+                freeCamBtn.classList.add('inactive');
+            }
+        };
+
+        freeCamBtn.addEventListener('click', toggleFreeCamera);
+
+
+document.getElementById('stop-btn').addEventListener('click', () => {
+    trainsMoving = !trainsMoving; // Esto alternará el valor de trainsMoving cada vez que se haga clic en el botón
+});
+
+document.getElementById('increase-speed-btn').addEventListener('click', () => {
+    trainSpeed += 0.01; // Aumenta la velocidad en 0.01 cada vez que se hace clic en el botón
+    document.getElementById('speed-indicator').textContent = 'Velocidad: ' + trainSpeed;
+});
+
+document.getElementById('decrease-speed-btn').addEventListener('click', () => {
+    if (trainSpeed > 0) {
+        trainSpeed -= 0.01; // Disminuye la velocidad en 0.01 cada vez que se hace clic en el botón, pero no permite que la velocidad sea negativa
+    }
+    document.getElementById('speed-indicator').textContent = 'Velocidad: ' + trainSpeed;
+});
+
+
+
+document.getElementById('play-sound-button').addEventListener('click', function() {
+    // Aquí va el código para reproducir el sonido
+
+    // Crear un objeto AudioListener
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+// Cargar el archivo de audio
+const audioLoader = new THREE.AudioLoader();
+
+let sound = new THREE.Audio(listener);
+
+audioLoader.load('Sonido/metro.mp3', function(buffer) {
+    sound.setBuffer(buffer);
+    sound.setLoop(true);
+    sound.setVolume(0.5);
+});
+
+document.getElementById('play-sound-button').addEventListener('click', function() {
+    sound.play();
+});
+
+});
+
+
+        animate();
+    </script>
+</body>
+</html>
